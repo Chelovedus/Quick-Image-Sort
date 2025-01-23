@@ -126,6 +126,29 @@ namespace ImageSorterApp
             Resize += (s, e) => LoadImage();
         }
 
+        protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        base.OnFormClosing(e);
+
+        // Если пользователь пытается закрыть форму (через крестик или Alt + F4)
+        if (e.CloseReason == CloseReason.UserClosing)
+        {
+            var result = MessageBox.Show("Вы уверены, что хотите закрыть программу?", 
+                                         "Закрытие", 
+                                         MessageBoxButtons.YesNo, 
+                                         MessageBoxIcon.Question);
+            
+            if (result == DialogResult.No)
+            {
+                e.Cancel = true;  // Отменяет закрытие формы
+            }
+            else
+            {
+                DeleteViewedImages();
+            }
+        }
+    }
+
         private void LoadImages()
         {
             _imageFiles = Directory.GetFiles(_sourceFolderPath, "*.*")
@@ -171,7 +194,7 @@ namespace ImageSorterApp
                     DeleteSavedImage();
                     break;
                 case Keys.Escape:
-                    DeleteViewedImages();
+                    // DeleteViewedImages();
                     Close();
                     break;
             }
