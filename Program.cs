@@ -146,7 +146,7 @@ namespace ImageSorterApp
             {
                 _pictureBox.Image?.Dispose();
                 var image = Image.FromFile(_imageFiles[_currentIndex]);
-                _pictureBox.SizeMode = image.Width < 1000 || image.Height < 1000 ? PictureBoxSizeMode.CenterImage : PictureBoxSizeMode.Zoom;
+                _pictureBox.SizeMode = image.Width < 700 && image.Height < 700 ? PictureBoxSizeMode.CenterImage : PictureBoxSizeMode.Zoom;
                 _pictureBox.Image = image;
                 Text = $"Image {(_currentIndex + 1)} of {_imageFiles.Length}";
             }
