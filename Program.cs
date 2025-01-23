@@ -4,9 +4,86 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using System.Threading;
+using System.Configuration;
 
 namespace ImageSorterApp
 {
+    public class StartupForm : Form
+    {
+        private TextBox _sourceTextBox;
+        private TextBox _outputTextBox;
+        private Button _selectSourceButton;
+        private Button _selectOutputButton;
+        private Button _continueButton;
+
+        public string SourceFolderPath { get; private set; }
+        public string OutputFolderPath { get; private set; }
+
+        public StartupForm()
+        {
+            Text = "Настройка путей";
+            Width = 500;
+            Height = 200;
+
+            _sourceTextBox = new TextBox { Left = 20, Top = 20, Width = 350 };
+            _selectSourceButton = new Button { Text = "...", Left = 380, Top = 18, Width = 50 };
+            _selectSourceButton.Click += (s, e) => SelectFolder(_sourceTextBox);
+
+            _outputTextBox = new TextBox { Left = 20, Top = 60, Width = 350 };
+            _selectOutputButton = new Button { Text = "...", Left = 380, Top = 58, Width = 50 };
+            _selectOutputButton.Click += (s, e) => SelectFolder(_outputTextBox);
+
+            _continueButton = new Button { Text = "Далее", Left = 200, Top = 100, Width = 100 };
+            _continueButton.Click += ContinueButton_Click;
+
+            Controls.Add(_sourceTextBox);
+            Controls.Add(_selectSourceButton);
+            Controls.Add(_outputTextBox);
+            Controls.Add(_selectOutputButton);
+            Controls.Add(_continueButton);
+
+            _sourceTextBox.Text = ConfigurationManager.AppSettings["SourceFolderPath"];
+            _outputTextBox.Text = ConfigurationManager.AppSettings["OutputFolderPath"];
+        }
+
+        private void SelectFolder(TextBox textBox)
+        {
+            using (var folderDialog = new FolderBrowserDialog())
+            {
+                if (folderDialog.ShowDialog() == DialogResult.OK)
+                {
+                    textBox.Text = folderDialog.SelectedPath;
+                }
+            }
+        }
+
+        private void ContinueButton_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(_sourceTextBox.Text) || string.IsNullOrEmpty(_outputTextBox.Text))
+            {
+                MessageBox.Show("Выберите обе папки.");
+                return;
+            }
+
+            SaveSetting("SourceFolderPath", _sourceTextBox.Text);
+            SaveSetting("OutputFolderPath", _outputTextBox.Text);
+
+            SourceFolderPath = _sourceTextBox.Text;
+            OutputFolderPath = _outputTextBox.Text;
+
+            DialogResult = DialogResult.OK;
+            Close();
+        }
+
+        private void SaveSetting(string key, string value)
+        {
+            var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+            config.AppSettings.Settings[key].Value = value;
+            config.Save(ConfigurationSaveMode.Modified);
+            ConfigurationManager.RefreshSection("appSettings");
+        }
+    }
+
     public class ImageSorterForm : Form
     {
         private string[] _imageFiles;
@@ -16,8 +93,11 @@ namespace ImageSorterApp
         private PictureBox _pictureBox;
         private Label _notificationLabel;
 
-        public ImageSorterForm()
+        public ImageSorterForm(string sourceFolderPath, string outputFolderPath)
         {
+            _sourceFolderPath = sourceFolderPath;
+            _outputFolderPath = outputFolderPath;
+
             Text = "Image Sorter";
 
             _pictureBox = new PictureBox
@@ -39,48 +119,21 @@ namespace ImageSorterApp
             };
             Controls.Add(_notificationLabel);
 
-            SelectFolders();
+            LoadImages();
             LoadImage();
 
             KeyDown += OnKeyDown;
             Resize += (s, e) => LoadImage();
         }
 
-        private void ShowNotification(string message)
+        private void LoadImages()
         {
-            _notificationLabel.Text = message;
-            _notificationLabel.Visible = true;
-            System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 2000 };
-            timer.Tick += (s, e) =>
-            {
-                _notificationLabel.Visible = false;
-                timer.Stop();
-            };
-            timer.Start();
-        }
+            _imageFiles = Directory.GetFiles(_sourceFolderPath, "*.*")
+                .Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                            f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
 
-        private void SelectFolders()
-        {
-            using (var folderDialog = new FolderBrowserDialog())
-            {
-                MessageBox.Show("Выберите папку с изображениями.");
-                if (folderDialog.ShowDialog() == DialogResult.OK)
-                {
-                    _sourceFolderPath = folderDialog.SelectedPath;
-                    _imageFiles = Directory.GetFiles(_sourceFolderPath, "*.*")
-                        .Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                                    f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-                        .ToArray();
-                }
-                
-                MessageBox.Show("Выберите папку для сохранения изображений.");
-                if (folderDialog.ShowDialog() == DialogResult.OK)
-                {
-                    _outputFolderPath = folderDialog.SelectedPath;
-                }
-            }
-
-            if (_imageFiles == null || _imageFiles.Length == 0)
+            if (_imageFiles.Length == 0)
             {
                 MessageBox.Show("В папке нет изображений.");
                 Close();
@@ -92,7 +145,9 @@ namespace ImageSorterApp
             if (_imageFiles.Length > 0 && _currentIndex >= 0 && _currentIndex < _imageFiles.Length)
             {
                 _pictureBox.Image?.Dispose();
-                _pictureBox.Image = Image.FromFile(_imageFiles[_currentIndex]);
+                var image = Image.FromFile(_imageFiles[_currentIndex]);
+                _pictureBox.SizeMode = image.Width < 1000 || image.Height < 1000 ? PictureBoxSizeMode.CenterImage : PictureBoxSizeMode.Zoom;
+                _pictureBox.Image = image;
                 Text = $"Image {(_currentIndex + 1)} of {_imageFiles.Length}";
             }
         }
@@ -102,29 +157,19 @@ namespace ImageSorterApp
             switch (e.KeyCode)
             {
                 case Keys.Left:
-                    if (_currentIndex > 0)
-                    {
-                        _currentIndex--;
-                        LoadImage();
-                    }
+                    if (_currentIndex > 0) _currentIndex--;
+                    LoadImage();
                     break;
-
                 case Keys.Right:
-                    if (_currentIndex < _imageFiles.Length - 1)
-                    {
-                        _currentIndex++;
-                        LoadImage();
-                    }
+                    if (_currentIndex < _imageFiles.Length - 1) _currentIndex++;
+                    LoadImage();
                     break;
-
                 case Keys.Up:
                     SaveCurrentImage();
                     break;
-
                 case Keys.Down:
                     DeleteSavedImage();
                     break;
-
                 case Keys.Escape:
                     DeleteViewedImages();
                     Close();
@@ -134,33 +179,14 @@ namespace ImageSorterApp
 
         private void SaveCurrentImage()
         {
-            string sourceFile = _imageFiles[_currentIndex];
-            string destinationFile = Path.Combine(_outputFolderPath, Path.GetFileName(sourceFile));
-
-            if (!File.Exists(destinationFile))
-            {
-                File.Copy(sourceFile, destinationFile);
-                ShowNotification($"Сохранено: {Path.GetFileName(sourceFile)}");
-            }
-            else
-            {
-                ShowNotification("Файл уже существует в выходной папке.");
-            }
+            string destFile = Path.Combine(_outputFolderPath, Path.GetFileName(_imageFiles[_currentIndex]));
+            if (!File.Exists(destFile)) File.Copy(_imageFiles[_currentIndex], destFile);
         }
 
         private void DeleteSavedImage()
         {
-            string savedFile = Path.Combine(_outputFolderPath, Path.GetFileName(_imageFiles[_currentIndex]));
-
-            if (File.Exists(savedFile))
-            {
-                File.Delete(savedFile);
-                ShowNotification($"Удалено: {Path.GetFileName(savedFile)}");
-            }
-            else
-            {
-                ShowNotification("Файл отсутствует в выходной папке.");
-            }
+            string destFile = Path.Combine(_outputFolderPath, Path.GetFileName(_imageFiles[_currentIndex]));
+            if (File.Exists(destFile)) File.Delete(destFile);
         }
 
         private void DeleteViewedImages()
@@ -174,10 +200,8 @@ namespace ImageSorterApp
                 }
                 catch (Exception ex)
                 {
-                    ShowNotification($"Ошибка удаления {Path.GetFileName(_imageFiles[i])}");
                 }
             }
-            ShowNotification("Просмотренные изображения удалены.");
         }
 
         [STAThread]
@@ -185,7 +209,13 @@ namespace ImageSorterApp
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new ImageSorterForm());
+            using (var startupForm = new StartupForm())
+            {
+                if (startupForm.ShowDialog() == DialogResult.OK)
+                {
+                    Application.Run(new ImageSorterForm(startupForm.SourceFolderPath, startupForm.OutputFolderPath));
+                }
+            }
         }
     }
 }
