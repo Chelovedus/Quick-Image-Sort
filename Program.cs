@@ -25,10 +25,12 @@ namespace ImageSorterApp
             Width = 500;
             Height = 200;
 
+            Label sourceLabel = new Label { Text = "Выберите папку с изображениями:", Left = 20, Top = 0, Width = 350 };
             _sourceTextBox = new TextBox { Left = 20, Top = 20, Width = 350 };
             _selectSourceButton = new Button { Text = "...", Left = 380, Top = 18, Width = 50 };
             _selectSourceButton.Click += (s, e) => SelectFolder(_sourceTextBox);
 
+            Label outputLabel = new Label { Text = "Выберите папку для сохранения изображений:", Left = 20, Top = 40, Width = 350 };
             _outputTextBox = new TextBox { Left = 20, Top = 60, Width = 350 };
             _selectOutputButton = new Button { Text = "...", Left = 380, Top = 58, Width = 50 };
             _selectOutputButton.Click += (s, e) => SelectFolder(_outputTextBox);
@@ -36,11 +38,22 @@ namespace ImageSorterApp
             _continueButton = new Button { Text = "Далее", Left = 200, Top = 100, Width = 100 };
             _continueButton.Click += ContinueButton_Click;
 
+            Label instructionLabel = new Label
+            {
+                Text = "Управление: ← (назад), → (вперёд), ↑ (сохранить), ↓ (удалить), Esc (выход)",
+                Left = 20,
+                Top = 140,
+                Width = 450
+            };
+
+            Controls.Add(sourceLabel);
             Controls.Add(_sourceTextBox);
             Controls.Add(_selectSourceButton);
+            Controls.Add(outputLabel);
             Controls.Add(_outputTextBox);
             Controls.Add(_selectOutputButton);
             Controls.Add(_continueButton);
+            Controls.Add(instructionLabel);
 
             _sourceTextBox.Text = ConfigurationManager.AppSettings["SourceFolderPath"];
             _outputTextBox.Text = ConfigurationManager.AppSettings["OutputFolderPath"];
