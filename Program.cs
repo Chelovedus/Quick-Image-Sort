@@ -165,9 +165,10 @@ namespace ImageSorterApp
         private void LoadImages()
         {
             _imageFiles = Directory.GetFiles(_sourceFolderPath, "*.*")
-                .Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                            f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
+    .Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                f.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
+    .ToArray();
 
             if (_imageFiles.Length == 0)
             {
@@ -176,17 +177,65 @@ namespace ImageSorterApp
             }
         }
 
+        private Image _currentImage;
+        private bool _isGifAnimated;
+        
         private void LoadImage()
         {
             if (_imageFiles.Length > 0 && _currentIndex >= 0 && _currentIndex < _imageFiles.Length)
             {
-                _pictureBox.Image?.Dispose();
-                var image = Image.FromFile(_imageFiles[_currentIndex]);
-                _pictureBox.SizeMode = image.Width < 700 && image.Height < 700 ? PictureBoxSizeMode.CenterImage : PictureBoxSizeMode.Zoom;
-                _pictureBox.Image = image;
-                Text = $"Image {(_currentIndex + 1)} of {_imageFiles.Length}";
+                _pictureBox.Image?.Dispose(); // Освобождаем память от предыдущего изображения
+                _isGifAnimated = false; // Сбрасываем флаг анимации
+
+                string currentFile = _imageFiles[_currentIndex];
+
+                try
+                {
+                    if (currentFile.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _currentImage?.Dispose(); // Удаляем предыдущее изображение
+
+                        _currentImage = Image.FromFile(currentFile); // Загружаем новое изображение
+                        _pictureBox.Image = _currentImage;
+
+                        // Проверяем, является ли изображение анимированным GIF
+                        if (ImageAnimator.CanAnimate(_currentImage))
+                        {
+                            _isGifAnimated = true;
+                            ImageAnimator.Animate(_currentImage, OnFrameChanged);
+                        }
+                    }
+                    else
+                    {
+                        _currentImage?.Dispose();
+                        _currentImage = Image.FromFile(currentFile);
+                        _pictureBox.Image = _currentImage;
+                    }
+
+                    // Настраиваем режим отображения
+                    _pictureBox.SizeMode = _currentImage.Width < 700 && _currentImage.Height < 700 
+                        ? PictureBoxSizeMode.CenterImage 
+                        : PictureBoxSizeMode.Zoom;
+
+                    Text = $"Image {(_currentIndex + 1)} of {_imageFiles.Length}";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Ошибка загрузки изображения: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
+
+
+        // Метод обновления кадра GIF
+        private void OnFrameChanged(object sender, EventArgs e)
+        {
+            if (_isGifAnimated)
+            {
+                _pictureBox.Invalidate(); // Перерисовка PictureBox для обновления кадра GIF
+            }
+        }
+
 
         private void OnKeyDown(object sender, KeyEventArgs e)
         {
